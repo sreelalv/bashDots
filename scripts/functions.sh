@@ -14,22 +14,25 @@ quiet(){
 }
 
 bl(){        #Bluetooth control 
-  if [ -z $1 ] ; then 
+  if [[ -z $1 ]] ; then 
     bluetoothctl devices |grep --colour=never Device | awk 'BEGIN{i=1}{print i" "$0 ;i++}'
   else 
-    if [ "$1" = "dis" -o "$1" = "disconnect" ] ; then
+    if [[ "$1" = "dis" ||  "$1" = "disconnect" ]] ; then
       quiet bluetoothctl disconnect
     elif [ "$1" = "scan" ] ; then
       ((expect -c '
       spawn bluetoothctl 
       set timeout 0
       expect "#"
+      send "power on\r"
+      set timeout 5
+      expect "#"
       send "scan on\r"
       set timeout 5
       expect "#"
       send "exit\r"
       ' >/dev/null 2>&1)&& bl)
-    elif [ "$1" = "i" -o "$1" = "interactive" ] ; then 
+    elif [[ "$1" = "i" ||  "$1" = "interactive" ]] ; then 
       bluetoothctl 
     else
       if [[ "$1" =~ "[0-9]" ]]; then
@@ -78,12 +81,12 @@ bri(){        # Brightness control
 aria(){ 
 	local input="$1"
 	local _aria_="aria2c -x 16 -s 16 -j 8"
-	local dir="-d /home/sree/Downloads/aria/"
+	local dir="-d $HOME/Downloads/aria/"
 	local con="--continue=true" 
 	local overwrite="--allow-overwrite"
 	local torrent="--enable-dht=true --bt-enable-lpd=true --bt-max-peers=50 --seed-time=0"
 
-	if [[ $input =~ *torrent || $input =~ ^magnet ]] ; then
+	if [[ $input =~ torrent$ || $input =~ ^magnet ]] ; then
 		_aria_="${_aria_} ${torrent}"
 	fi
 	_aria_="${_aria_} ${dir}" 
