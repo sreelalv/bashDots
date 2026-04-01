@@ -14,12 +14,26 @@ quiet(){
 }
 
 bl(){        #Bluetooth control 
-  if [[ -z $1 ]] ; then 
-    bluetoothctl devices |grep --colour=never Device | awk 'BEGIN{i=1}{print i" "$0 ;i++}'
-  else 
-    if [[ "$1" = "dis" ||  "$1" = "disconnect" ]] ; then
-      quiet bluetoothctl disconnect
-    elif [ "$1" = "scan" ] ; then
+  local param1="$1"
+  local param2="$2"
+  local tmpfile="/tmp/tmp.bluetoothdevices"
+
+  if [[ ! -f "$tmpfile" ]] ; then 
+    touch "$tmpfile"
+    param1="*"
+  fi
+  
+  declare -A bl_list 
+  while read -r  key value ; do 
+    bl_list["$key"]="$value"
+  done < <(awk '{print $1,$3}' "$tmpfile")
+  
+  case $param1 in 
+    interactive | i )
+      bluetoothctl 
+      ;;
+
+    scan )
       ((expect -c '
       spawn bluetoothctl 
       set timeout 0
@@ -31,29 +45,57 @@ bl(){        #Bluetooth control
       set timeout 5
       expect "#"
       send "exit\r"
-      ' >/dev/null 2>&1)&& bl)
-    elif [[ "$1" = "i" ||  "$1" = "interactive" ]] ; then 
-      bluetoothctl 
-    else
-      if [[ "$1" =~ "[0-9]" ]]; then
-        device="$(bluetoothctl devices | awk -v value="$1" 'NR==value{print $2}')"
-        echo "$device"
-      else
-        device="$(bluetoothctl devices | grep -i "$1" | awk '{print $2}')" 
-        if [[ -z "$device" ]] ; then 
-          echo "No device found" 
-          exit 
-        fi
-      fi
+      ' >/dev/null 2>&1)&& bl )
+      
+      ;; 
 
-      if [[ "$(bluetoothctl info $device | grep Trusted | awk '{print $2}')" == "no" ]] ;then
-        quiet bluetoothctl pair "$device"
-        quiet bluetoothctl trust "$device" 
+    connected )
+      for i in ${!bl_list[@]} ; do 
+        if [[ "$(bluetoothctl info ${bl_list["$i"]} | grep Connected | grep yes)" ]] ; then 
+          bluetoothctl devices | grep --colour=never "${bl_list["$i"]}" 
+        fi
+      done
+      ;; 
+
+    con )
+            
+      if [[ -z "$param2" ]] ; then 
+        echo "No device found" 
+      else
+        if [[ "$(bluetoothctl info ${bl_list[$param2]} | grep Trusted | awk '{print $2}')" == "no" ]] ;then
+          quiet bluetoothctl pair "${bl_list[$param2]}"
+          quiet bluetoothctl trust "${bl_list[$param2]}" 
+        fi
+        quiet bluetoothctl connect "${bl_list[$param2]}"
       fi
-      quiet bluetoothctl connect "$device"
-    fi 
-  fi 
+      ;; 
+      
+    dis | disconnect) 
+      if [[ -z $param2 ]] ; then 
+        quiet bluetoothctl disconnect 
+      else
+        echo "Disconnecting ${bl_list["$param2"]}..." 
+        quiet bluetoothctl disconnect ${bl_list["$param2"]}
+      fi
+      ;;
+
+    rm | remove )
+      if [[ -z "$param2" ]] ; then 
+        echo "R1 ${bl_list["1"]}"
+        bluetoothctl remove "${bl_list["1"]}"
+      else
+        echo "R2 ${bl_list["$param2"]}"
+        bluetoothctl remove "${bl_list["$param2"]}"
+      fi
+      ;; 
+
+    * )
+      bluetoothctl devices | grep --colour=never Device | awk 'BEGIN{i=1}{print i" "$0 ;i++}' | tee  $tmpfile
+      ;; 
+
+  esac
 }
+
 
 bri(){        # Brightness control 
   current="$(brightnessctl i | awk 'NR==2{print $3/120000*100}')"
@@ -68,7 +110,7 @@ bri(){        # Brightness control
       (( val = current + val )) 
     elif [[ "$val" =~ ^[-][0-9]+$ ]]; then 
       val="$(echo $val | tr -d '-')" 
-      (( val = current - val ))  
+      (( val j= current - val ))  
     fi 
     if [[ $val -lt 5 ]]; then 
       ((val = 5))
