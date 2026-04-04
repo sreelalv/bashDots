@@ -13,7 +13,11 @@ quiet(){
   ("$@" >/dev/null 2>&1)
 }
 
-bl(){        #Bluetooth control 
+bl()(        #Bluetooth control 
+  if [[ "$(bluetoothctl show | grep PowerState | grep off)" ]] ; then 
+	  quiet bluetoothctl power on
+  fi
+
   local param1="$1"
   local param2="$2"
   local tmpfile="/tmp/tmp.bluetoothdevices"
@@ -22,7 +26,12 @@ bl(){        #Bluetooth control
     touch "$tmpfile"
     param1="*"
   fi
-  
+	
+	if [[ "${param1}" =~ [0-9]$ ]] ; then 
+		param2="$param1"
+		param1="con"						
+	fi 
+ 
   declare -A bl_list 
   while read -r  key value ; do 
     bl_list["$key"]="$value"
@@ -37,9 +46,6 @@ bl(){        #Bluetooth control
       ((expect -c '
       spawn bluetoothctl 
       set timeout 0
-      expect "#"
-      send "power on\r"
-      set timeout 5
       expect "#"
       send "scan on\r"
       set timeout 5
@@ -67,6 +73,9 @@ bl(){        #Bluetooth control
           quiet bluetoothctl trust "${bl_list[$param2]}" 
         fi
         quiet bluetoothctl connect "${bl_list[$param2]}"
+				if [[ "$(bluetoothctl devices Connected | grep ${bl_list[$param2]}))" ]] ; then 
+					echo "Connection Successfull"
+				fi 
       fi
       ;; 
       
@@ -81,11 +90,13 @@ bl(){        #Bluetooth control
 
     rm | remove )
       if [[ -z "$param2" ]] ; then 
-        echo "R1 ${bl_list["1"]}"
-        bluetoothctl remove "${bl_list["1"]}"
+	      for i in ${bl_list[@]} ; do 
+		      echo "Removing $i"
+		      quiet bluetoothctl remove "$i"
+	      done
       else
         echo "R2 ${bl_list["$param2"]}"
-        bluetoothctl remove "${bl_list["$param2"]}"
+        quiet bluetoothctl remove "${bl_list["$param2"]}" 
       fi
       ;; 
 
@@ -94,7 +105,7 @@ bl(){        #Bluetooth control
       ;; 
 
   esac
-}
+)
 
 
 bri(){        # Brightness control 
