@@ -2,7 +2,11 @@
 
 
 background(){
+	if [[ "$@" =~ .*sudo.* ||  "$@" =~ .*yay.* ]] ; then 
+		sudo ls >/dev/null 2>&1 
+	fi
   (( "$@" >/dev/null 2>&1 && [[ $? -eq 0 ]] && (notify-send "Task Completed" "$*") || (notify-send "Task Failed" "$*") )&)
+	[[ $? == 0 ]] && echo "Background : $@" 
 }
 
 run(){
@@ -109,7 +113,7 @@ bl()(        #Bluetooth control
 
 
 bri(){        # Brightness control 
-  current="$(brightnessctl i | awk 'NR==2{print $3/120000*100}')"
+  current="$(brightnessctl | awk 'NR==2{print}' | cut -d '(' -f2 | grep -oE [0-9]+)"
   val="$1"
 
   if [[ -z $val ]] ; then 
